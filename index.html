@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VIN Year Decoder</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --border: #2a2a2a;
+    --accent: #e8c96d;
+    --accent2: #c4a24e;
+    --text: #f0ede8;
+    --muted: #6b6b6b;
+    --success: #4ecb71;
+    --error: #e8605a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  header {
+    width: 100%;
+    padding: 28px 24px 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.8rem;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  .main {
+    width: 100%;
+    max-width: 480px;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Camera */
+  .camera-box {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  #videoEl {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  #canvasEl { display: none; }
+
+  .vin-guide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .guide-box {
+    width: 88%;
+    height: 56px;
+    border: 2px solid var(--accent);
+    border-radius: 6px;
+    box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
+    position: relative;
+  }
+
+  .guide-label {
+    position: absolute;
+    top: -26px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  /* 10th position marker */
+  .pos-marker {
+    position: absolute;
+    bottom: -22px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .pos-tick {
+    width: calc(88% / 17);
+    text-align: center;
+    font-size: 0.45rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .pos-tick.active {
+    color: var(--accent);
+    font-weight: bold;
+  }
+
+  /* Camera controls */
+  .cam-controls {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .btn-primary:hover { background: var(--accent2); }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Upload alternative */
+  .upload-alt {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  .upload-alt label {
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  #fileInput { display: none; }
+
+  /* Result card */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    display: none;
+    animation: slideUp 0.3s ease;
+  }
+
+  .result-card.show { display: block; }
+  .result-card.loading { opacity: 0.7; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .result-char {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .char-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 5rem;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .char-sublabel {
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .char-sublabel strong {
+    display: block;
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+
+  .year-display {
+    background: linear-gradient(135deg, #1e1a0e, #191500);
+    border: 1px solid var(--accent2);
+    border-radius: 10px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .year-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.5rem;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    line-height: 1;
+  }
+
+  .year-icon {
+    font-size: 2.5rem;
+    opacity: 0.6;
+  }
+
+  .full-vin {
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: #0a0a0a;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    word-break: break-all;
+  }
+
+  .full-vin .highlight {
+    color: var(--accent);
+    font-weight: bold;
+  }
+
+  .error-msg {
+    color: var(--error);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Status bar */
+  .status {
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--muted);
+    min-height: 20px;
+  }
+
+  /* Captured preview */
+  #previewImg {
+    width: 100%;
+    border-radius: 12px;
+    display: none;
+    border: 1px solid var(--border);
+  }
+
+  .retake-bar {
+    display: none;
+    gap: 10px;
+  }
+
+  .retake-bar.show { display: flex; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VIN Decoder</h1>
+  <p>Point camera at VIN · Get model year instantly</p>
+</header>
+
+<div class="main">
+
+  <!-- Camera -->
+  <div class="camera-box" id="cameraBox">
+    <video id="videoEl" autoplay playsinline muted></video>
+    <canvas id="canvasEl"></canvas>
+    <div class="vin-guide">
+      <div class="guide-box">
+        <div class="guide-label">Align VIN number inside box</div>
+      </div>
+    </div>
+  </div>
+
+  <img id="previewImg" alt="Captured VIN">
+
+  <!-- Controls -->
+  <div class="cam-controls" id="camControls">
+    <button class="btn btn-secondary" id="startCamBtn" onclick="startCamera()">📷 Open Camera</button>
+    <button class="btn btn-primary" id="captureBtn" onclick="capture()" disabled>Snap</button>
+  </div>
+
+  <div class="retake-bar" id="retakeBar">
+    <button class="btn btn-secondary" onclick="retake()">↩ Retake</button>
+    <button class="btn btn-primary" onclick="analyzeImage()">🔍 Analyze VIN</button>
+  </div>
+
+  <div class="upload-alt">
+    or <label for="fileInput">upload a photo</label>
+    <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <!-- Result -->
+  <div class="result-card" id="resultCard">
+    <div class="result-label">Analysis Result</div>
+    <div id="resultContent"></div>
+  </div>
+
+</div>
+
+<script>
+// ── VIN Year Table (from photo) ──────────────────────────────────
+const VIN_YEAR = {
+  'A':1980,'B':1981,'C':1982,'D':1983,'E':1984,'F':1985,'G':1986,
+  'H':1987,'J':1988,'K':1989,
+  'L':1990,'M':1991,'N':1992,'P':1993,'R':1994,'S':1995,'T':1996,
+  'V':1997,'W':1998,'X':1999,
+  'Y':2000,'1':2001,'2':2002,'3':2003,'4':2004,'5':2005,'6':2006,
+  '7':2007,'8':2008,'9':2009,
+  'A':2010,'B':2011,'C':2012,'D':2013,'E':2014,'F':2015,'G':2016,
+  'H':2017,'J':2018,'K':2019,
+  'L':2020,'M':2021,'N':2022,'P':2023,'R':2024,'S':2025,'T':2026,
+  'V':2027,'W':2028,'X':2029
+};
+
+// Full dual-cycle table: char → [year1, year2]
+const VIN_YEARS_DUAL = {
+  'A':[1980,2010],'B':[1981,2011],'C':[1982,2012],'D':[1983,2013],
+  'E':[1984,2014],'F':[1985,2015],'G':[1986,2016],'H':[1987,2017],
+  'J':[1988,2018],'K':[1989,2019],'L':[1990,2020],'M':[1991,2021],
+  'N':[1992,2022],'P':[1993,2023],'R':[1994,2024],'S':[1995,2025],
+  'T':[1996,2026],'V':[1997,2027],'W':[1998,2028],'X':[1999,2029],
+  'Y':[2000,null],'1':[2001,null],'2':[2002,null],'3':[2003,null],
+  '4':[2004,null],'5':[2005,null],'6':[2006,null],'7':[2007,null],
+  '8':[2008,null],'9':[2009,null]
+};
+
+// ── State ────────────────────────────────────────────────────────
+let stream = null;
+let capturedDataUrl = null;
+
+// ── Camera ───────────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    setStatus('Starting camera…');
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const video = document.getElementById('videoEl');
+    video.srcObject = stream;
+    document.getElementById('captureBtn').disabled = false;
+    document.getElementById('startCamBtn').disabled = true;
+    setStatus('Camera ready — align VIN in the frame');
+  } catch(e) {
+    setStatus('Camera unavailable — please upload a photo instead');
+  }
+}
+
+function capture() {
+  const video = document.getElementById('videoEl');
+  const canvas = document.getElementById('canvasEl');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  capturedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  showPreview(capturedDataUrl);
+  stopCamera();
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('cameraBox').style.display = 'none';
+  document.getElementById('camControls').style.display = 'none';
+}
+
+function retake() {
+  document.getElementById('previewImg').style.display = 'none';
+  document.getElementById('retakeBar').classList.remove('show');
+  document.getElementById('cameraBox').style.display = 'block';
+  document.getElementById('camControls').style.display = 'flex';
+  document.getElementById('startCamBtn').disabled = false;
+  document.getElementById('captureBtn').disabled = true;
+  document.getElementById('resultCard').classList.remove('show');
+  capturedDataUrl = null;
+  setStatus('');
+}
+
+function showPreview(dataUrl) {
+  const img = document.getElementById('previewImg');
+  img.src = dataUrl;
+  img.style.display = 'block';
+  document.getElementById('retakeBar').classList.add('show');
+  setStatus('Photo captured — tap Analyze VIN');
+}
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    capturedDataUrl = ev.target.result;
+    stopCamera();
+    showPreview(capturedDataUrl);
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── AI Analysis ──────────────────────────────────────────────────
+async function analyzeImage() {
+  if (!capturedDataUrl) return;
+
+  setStatus('<span class="spinner"></span> Reading VIN…');
+  showResult('<span class="spinner"></span> Analyzing image with AI…', true);
+
+  const base64 = capturedDataUrl.split(',')[1];
+  const mediaType = capturedDataUrl.split(';')[0].split(':')[1];
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: base64 }
+            },
+            {
+              type: 'text',
+              text: `This image contains a Vehicle Identification Number (VIN). 
+Please read the full VIN (17 characters) and extract ONLY the 10th character.
+
+Respond in JSON only, no extra text:
+{
+  "full_vin": "THE FULL 17 CHAR VIN OR PARTIAL IF UNCLEAR",
+  "tenth_char": "SINGLE CHARACTER",
+  "confidence": "high|medium|low",
+  "note": "any important note or empty string"
+}
+
+If you cannot read the VIN at all, return:
+{"full_vin":"","tenth_char":"","confidence":"low","note":"Could not read VIN"}`
+            }
+          ]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.find(b => b.type === 'text')?.text || '';
+    
+    let parsed;
+    try {
+      const clean = text.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch {
+      throw new Error('Could not parse AI response');
+    }
+
+    setStatus('');
+    displayResult(parsed);
+
+  } catch(err) {
+    setStatus('');
+    showResult(`<div class="error-msg">⚠️ ${err.message || 'Analysis failed. Please try again.'}</div>`, false);
+  }
+}
+
+function displayResult({ full_vin, tenth_char, confidence, note }) {
+  if (!tenth_char) {
+    showResult(`<div class="error-msg">⚠️ Could not read the VIN clearly.<br>${note || 'Try a clearer, well-lit photo.'}</div>`, false);
+    return;
+  }
+
+  const ch = tenth_char.toUpperCase();
+  const years = VIN_YEARS_DUAL[ch];
+
+  let yearHTML = '';
+  if (years) {
+    const [y1, y2] = years;
+    yearHTML = `
+      <div class="year-display" style="margin-bottom:${y2 ? 10 : 0}px">
+        <div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-bottom:4px;letter-spacing:0.1em">MODEL YEAR</div>
+          <div class="year-num">${y1}</div>
+        </div>
+        <div class="year-icon">🚗</div>
+      </div>
+      ${y2 ? `
+      <div class="year-display">
+        <div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-bottom:4px;letter-spacing:0.1em">OR MODEL YEAR</div>
+          <div class="year-num">${y2}</div>
+        </div>
+        <div class="year-icon">🚘</div>
+      </div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-top:8px;line-height:1.5">
+        ℹ️ VIN codes repeat every 30 years. Check other digits to confirm the exact year.
+      </div>` : ''}
+    `;
+  } else {
+    yearHTML = `<div class="error-msg">Character "${ch}" not found in VIN year table.</div>`;
+  }
+
+  const vinDisplay = full_vin ? (() => {
+    const v = full_vin.replace(/\s/g,'').toUpperCase();
+    if (v.length >= 10) {
+      return v.slice(0,9) + `<span class="highlight">${v[9]}</span>` + v.slice(10);
+    }
+    return v;
+  })() : '';
+
+  const confColor = confidence === 'high' ? 'var(--success)' : confidence === 'medium' ? 'var(--accent)' : 'var(--error)';
+
+  showResult(`
+    <div class="result-char">
+      <div class="char-display">${ch}</div>
+      <div class="char-sublabel">
+        <strong>10th VIN character</strong>
+        Confidence: <span style="color:${confColor}">${confidence}</span>
+      </div>
+    </div>
+    ${yearHTML}
+    ${vinDisplay ? `<div class="full-vin">VIN: ${vinDisplay}</div>` : ''}
+    ${note ? `<div style="margin-top:10px;font-size:0.75rem;color:var(--muted)">${note}</div>` : ''}
+  `, false);
+}
+
+function showResult(html, loading) {
+  const card = document.getElementById('resultCard');
+  document.getElementById('resultContent').innerHTML = html;
+  card.classList.add('show');
+  card.classList.toggle('loading', loading);
+}
+
+function setStatus(html) {
+  document.getElementById('status').innerHTML = html;
+}
+</script>
+</body>
+</html>
