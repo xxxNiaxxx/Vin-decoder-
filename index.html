@@ -18,7 +18,6 @@
     --accent2: #c4a24e;
     --text: #f0ede8;
     --muted: #6b6b6b;
-    --success: #4ecb71;
     --error: #e8605a;
   }
 
@@ -30,31 +29,24 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    overflow-x: hidden;
   }
 
   header {
     width: 100%;
-    padding: 24px 24px 14px;
+    padding: 22px 20px 12px;
     text-align: center;
     border-bottom: 1px solid var(--border);
   }
 
   header h1 {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.6rem;
+    font-size: 2.4rem;
     letter-spacing: 0.12em;
     color: var(--accent);
     line-height: 1;
   }
 
-  header p {
-    color: var(--muted);
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-top: 5px;
-  }
+  header p { color: var(--muted); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 4px; }
 
   .main {
     width: 100%;
@@ -62,19 +54,42 @@
     padding: 20px 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
   }
 
-  /* ── Camera wrapper: full-width, 16:9 ── */
-  .camera-wrap {
+  /* ── The strip IS the viewfinder — no extra camera view ── */
+  .strip-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-align: center;
+  }
+
+  .camera-strip {
     position: relative;
     width: 100%;
-    aspect-ratio: 16/9;
+    height: 68px;          /* just tall enough for a line of text */
     background: #000;
-    border-radius: 12px;
+    border-radius: 8px;
     overflow: hidden;
-    border: 1px solid var(--border);
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 16px rgba(232,201,109,0.15);
   }
+
+  /* Corner decorations */
+  .camera-strip::before,
+  .camera-strip::after {
+    content: '';
+    position: absolute;
+    width: 12px; height: 12px;
+    border-color: var(--accent);
+    border-style: solid;
+    z-index: 2;
+  }
+  .camera-strip::before { top: 3px; left: 3px; border-width: 2px 0 0 2px; }
+  .camera-strip::after  { bottom: 3px; right: 3px; border-width: 0 2px 2px 0; }
 
   #videoEl {
     position: absolute;
@@ -82,66 +97,24 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    /* zoom in so text fills the strip */
+    transform: scale(1.5);
+    transform-origin: center center;
   }
 
-  /* ── Guide overlay ── */
-  .overlay {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  /* dark mask — we draw it via 4 divs (top/bottom/left/right) */
-  .mask { position: absolute; background: rgba(0,0,0,0.55); }
-  #maskTop    { top:0; left:0; right:0; }
-  #maskBottom { left:0; right:0; bottom:0; }
-  #maskLeft   { top:0; bottom:0; left:0; }
-  #maskRight  { top:0; bottom:0; right:0; }
-
-  /* the clear window */
-  #guideBox {
-    position: absolute;
-    border: 2px solid var(--accent);
-    border-radius: 6px;
-    box-shadow: 0 0 0 1px rgba(232,201,109,0.3);
-  }
-
-  .guide-label {
-    position: absolute;
-    top: -22px;
-    left: 0; right: 0;
-    text-align: center;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.6rem;
-    letter-spacing: 0.14em;
-    color: var(--accent);
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  /* corner ticks on guide box */
-  .corner {
-    position: absolute;
-    width: 10px; height: 10px;
-    border-color: var(--accent);
-    border-style: solid;
-  }
-  .corner.tl { top:-2px; left:-2px; border-width: 2px 0 0 2px; }
-  .corner.tr { top:-2px; right:-2px; border-width: 2px 2px 0 0; }
-  .corner.bl { bottom:-2px; left:-2px; border-width: 0 0 2px 2px; }
-  .corner.br { bottom:-2px; right:-2px; border-width: 0 2px 2px 0; }
-
-  /* ── Cropped strip preview (shown after snap) ── */
+  /* ── Preview of captured strip ── */
   #stripPreview {
     display: none;
     width: 100%;
+    height: 68px;
+    object-fit: cover;
     border-radius: 8px;
-    border: 1px solid var(--accent2);
-    image-rendering: pixelated;
-    background: #000;
+    border: 2px solid var(--accent2);
   }
 
-  /* ── Controls ── */
+  canvas { display: none; }
+
+  /* ── Buttons ── */
   .cam-controls { display: flex; gap: 10px; }
 
   .btn {
@@ -153,221 +126,144 @@
     font-size: 0.88rem;
     font-weight: 500;
     cursor: pointer;
-    letter-spacing: 0.04em;
-    transition: all 0.15s;
+    transition: all 0.14s;
   }
 
   .btn-primary { background: var(--accent); color: #000; }
-  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:active { background: var(--accent2); }
   .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-  .btn:active { transform: scale(0.97); }
+  .btn:active { transform: scale(0.96); }
   .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
 
   .retake-bar { display: none; gap: 10px; }
   .retake-bar.show { display: flex; }
 
-  .upload-alt { text-align: center; color: var(--muted); font-size: 0.78rem; }
+  .upload-alt { text-align: center; color: var(--muted); font-size: 0.76rem; }
   .upload-alt label { color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-  #fileInput { display: none; }
+  input[type=file] { display: none; }
 
-  /* ── Status ── */
-  .status {
-    text-align: center;
-    font-size: 0.82rem;
-    color: var(--muted);
-    min-height: 22px;
-    line-height: 1.5;
-  }
+  .status { text-align: center; font-size: 0.8rem; color: var(--muted); min-height: 20px; }
 
-  /* ── Result card ── */
+  /* ── Result ── */
   .result-card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 22px;
+    padding: 20px;
     display: none;
-    animation: slideUp 0.3s ease;
+    animation: up 0.25s ease;
   }
   .result-card.show { display: block; }
 
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(10px); }
+  @keyframes up {
+    from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  .result-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.62rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 12px;
-  }
+  .rlabel { font-family:'DM Mono',monospace; font-size:0.6rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
 
-  .result-char { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
+  .result-char { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; }
+  .char-big { font-family:'Bebas Neue',sans-serif; font-size:5rem; color:var(--accent); line-height:1; }
+  .char-sub { font-size:0.76rem; color:var(--muted); line-height:1.6; }
+  .char-sub strong { display:block; color:var(--text); font-size:0.86rem; }
 
-  .char-display {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 5rem;
-    color: var(--accent);
-    line-height: 1;
-  }
-
-  .char-sublabel { color: var(--muted); font-size: 0.78rem; line-height: 1.6; }
-  .char-sublabel strong { display: block; color: var(--text); font-size: 0.88rem; }
-
-  .year-display {
-    background: linear-gradient(135deg, #1e1a0e, #191500);
+  .year-card {
+    background: linear-gradient(135deg,#1e1a0e,#191500);
     border: 1px solid var(--accent2);
     border-radius: 10px;
-    padding: 16px 20px;
+    padding: 14px 18px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
   }
+  .year-sub { font-size:0.65rem; color:var(--muted); letter-spacing:0.1em; margin-bottom:2px; }
+  .year-big { font-family:'Bebas Neue',sans-serif; font-size:3rem; color:var(--accent); line-height:1; }
 
-  .year-num {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 3.2rem;
-    color: var(--accent);
-    line-height: 1;
+  .vin-line {
+    margin-top:12px; padding:10px 12px;
+    background:#0a0a0a; border-radius:8px;
+    font-family:'DM Mono',monospace; font-size:0.8rem;
+    color:var(--muted); letter-spacing:0.14em; word-break:break-all; line-height:2;
   }
+  .vin-line .hl { color:var(--accent); font-weight:bold; font-size:1rem; }
 
-  .year-sub { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 4px; }
+  .err { color:var(--error); font-size:0.84rem; line-height:1.6; }
+  .note { font-size:0.7rem; color:var(--muted); margin-top:8px; line-height:1.5; }
 
-  .full-vin {
-    margin-top: 14px;
-    padding: 10px 14px;
-    background: #0a0a0a;
-    border-radius: 8px;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.82rem;
-    color: var(--muted);
-    letter-spacing: 0.14em;
-    word-break: break-all;
-    line-height: 2;
-  }
-
-  .full-vin .hl { color: var(--accent); font-weight: bold; font-size: 1.05rem; }
-
-  .error-msg { color: var(--error); font-size: 0.85rem; line-height: 1.6; }
-  .note-msg  { font-size: 0.7rem; color: var(--muted); margin-top: 10px; line-height: 1.5; }
-
-  /* ── Manual input ── */
+  /* ── Manual ── */
   .manual-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:14px 16px;
+    display:flex; flex-direction:column; gap:8px;
   }
-
-  .manual-box label {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.62rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-
-  .manual-row { display: flex; gap: 8px; }
-
+  .manual-box label { font-family:'DM Mono',monospace; font-size:0.6rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--muted); }
+  .manual-row { display:flex; gap:8px; }
   .manual-box input {
-    flex: 1;
-    background: #0a0a0a;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 12px;
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-    font-size: 1rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    outline: none;
+    flex:1; background:#0a0a0a; border:1px solid var(--border);
+    border-radius:6px; padding:10px 12px;
+    color:var(--text); font-family:'DM Mono',monospace;
+    font-size:1rem; letter-spacing:0.15em; text-transform:uppercase; outline:none;
   }
-
-  .manual-box input:focus { border-color: var(--accent); }
+  .manual-box input:focus { border-color:var(--accent); }
 
   .spinner {
-    display: inline-block;
-    width: 15px; height: 15px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    vertical-align: middle;
-    margin-right: 6px;
+    display:inline-block; width:14px; height:14px;
+    border:2px solid var(--border); border-top-color:var(--accent);
+    border-radius:50%; animation:spin 0.7s linear infinite;
+    vertical-align:middle; margin-right:6px;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  canvas#canvasEl { display: none; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
 
 <header>
   <h1>VIN Decoder</h1>
-  <p>Align VIN · Snap · Get model year</p>
+  <p>Point strip at VIN · Snap · Get year</p>
 </header>
 
 <div class="main">
 
-  <!-- Camera -->
-  <div class="camera-wrap" id="cameraWrap">
+  <div class="strip-label" id="stripLabel">Align VIN number inside the strip</div>
+
+  <!-- The strip IS the viewfinder -->
+  <div class="camera-strip" id="cameraStrip">
     <video id="videoEl" autoplay playsinline muted></video>
-    <div class="overlay" id="overlay">
-      <div class="mask" id="maskTop"></div>
-      <div class="mask" id="maskBottom"></div>
-      <div class="mask" id="maskLeft"></div>
-      <div class="mask" id="maskRight"></div>
-      <div id="guideBox">
-        <div class="guide-label">Align VIN here</div>
-        <div class="corner tl"></div>
-        <div class="corner tr"></div>
-        <div class="corner bl"></div>
-        <div class="corner br"></div>
-      </div>
-    </div>
   </div>
 
-  <!-- Cropped strip preview -->
-  <img id="stripPreview" alt="Cropped VIN strip">
+  <!-- Captured strip preview -->
+  <img id="stripPreview" alt="Captured VIN">
 
   <canvas id="canvasEl"></canvas>
 
   <!-- Controls -->
   <div class="cam-controls" id="camControls">
-    <button class="btn btn-secondary" id="startCamBtn" onclick="startCamera()">📷 Open Camera</button>
-    <button class="btn btn-primary" id="captureBtn" onclick="capture()" disabled>Snap</button>
+    <button class="btn btn-secondary" id="startBtn" onclick="startCamera()">📷 Open Camera</button>
+    <button class="btn btn-primary"   id="snapBtn"  onclick="snap()" disabled>Snap</button>
   </div>
 
   <div class="retake-bar" id="retakeBar">
     <button class="btn btn-secondary" onclick="retake()">↩ Retake</button>
-    <button class="btn btn-primary" onclick="analyzeOCR()">🔍 Read VIN</button>
+    <button class="btn btn-primary"   onclick="runOCR()">🔍 Read VIN</button>
   </div>
 
   <div class="upload-alt">
-    or <label for="fileInput">upload a photo</label>
+    or <label for="fileInput">upload photo</label>
     <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
   </div>
 
   <div class="status" id="status"></div>
 
-  <!-- Result -->
   <div class="result-card" id="resultCard">
-    <div class="result-label">Result</div>
+    <div class="rlabel">Result</div>
     <div id="resultContent"></div>
   </div>
 
-  <!-- Manual -->
   <div class="manual-box">
     <label>⌨️ Or type VIN manually</label>
     <div class="manual-row">
-      <input type="text" id="manualVin" maxlength="17" placeholder="17 characters…"
+      <input id="manualVin" maxlength="17" placeholder="17 characters…"
              oninput="this.value=this.value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,'')">
       <button class="btn btn-primary" style="flex:0;padding:10px 18px" onclick="decodeManual()">GO</button>
     </div>
@@ -376,7 +272,6 @@
 </div>
 
 <script>
-// ── VIN year table (dual 30-yr cycle) ────────────────────────────
 const VIN_YEARS = {
   'A':[1980,2010],'B':[1981,2011],'C':[1982,2012],'D':[1983,2013],
   'E':[1984,2014],'F':[1985,2015],'G':[1986,2016],'H':[1987,2017],
@@ -388,130 +283,110 @@ const VIN_YEARS = {
   '8':[2008,null],'9':[2009,null]
 };
 
-// ── Guide box layout constants (must match CSS) ──────────────────
-// These are expressed as fractions of the camera-wrap dimensions.
-const GUIDE_W_FRAC = 0.88;   // 88% width
-const GUIDE_H_PX   = 60;     // fixed px height (we'll convert later)
-
-// ── State ────────────────────────────────────────────────────────
 let stream = null;
-let croppedDataUrl = null;   // only the strip inside the guide box
-let guideRect = null;        // { x, y, w, h } in camera-wrap px
+let croppedUrl = null;
 
-// ── Position guide box & masks ───────────────────────────────────
-function layoutGuide() {
-  const wrap = document.getElementById('cameraWrap');
-  const W = wrap.clientWidth;
-  const H = wrap.clientHeight;
-
-  const gw = Math.round(W * GUIDE_W_FRAC);
-  const gh = GUIDE_H_PX;
-  const gx = Math.round((W - gw) / 2);
-  const gy = Math.round((H - gh) / 2);
-
-  guideRect = { x: gx, y: gy, w: gw, h: gh };
-
-  const box = document.getElementById('guideBox');
-  box.style.left   = gx + 'px';
-  box.style.top    = gy + 'px';
-  box.style.width  = gw + 'px';
-  box.style.height = gh + 'px';
-
-  // masks
-  document.getElementById('maskTop').style.height    = gy + 'px';
-  document.getElementById('maskBottom').style.height = (H - gy - gh) + 'px';
-  document.getElementById('maskLeft').style.cssText  += `top:${gy}px;bottom:${H-gy-gh}px;width:${gx}px`;
-  document.getElementById('maskRight').style.cssText += `top:${gy}px;bottom:${H-gy-gh}px;width:${W-gx-gw}px;right:0`;
-}
-
-window.addEventListener('resize', layoutGuide);
-
-// ── Camera ───────────────────────────────────────────────────────
 async function startCamera() {
   try {
-    setStatus('<span class="spinner"></span> Starting camera…');
+    status$('📷 Starting camera…');
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: {
+        facingMode: 'environment',
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
     });
-    const video = document.getElementById('videoEl');
-    video.srcObject = stream;
-    await new Promise(r => video.onloadedmetadata = r);
-    video.play();
-
-    // Layout guide AFTER video is sized
-    setTimeout(() => {
-      layoutGuide();
-      document.getElementById('captureBtn').disabled = false;
-      document.getElementById('startCamBtn').disabled = true;
-      setStatus('Camera ready — align VIN inside the box');
-    }, 300);
+    const v = document.getElementById('videoEl');
+    v.srcObject = stream;
+    await new Promise(r => v.onloadedmetadata = r);
+    v.play();
+    document.getElementById('snapBtn').disabled  = false;
+    document.getElementById('startBtn').disabled = true;
+    status$('Camera ready — center the VIN in the strip');
   } catch(e) {
-    setStatus('Camera unavailable — upload a photo or type manually');
+    status$('Camera unavailable — upload or type manually');
   }
 }
 
-function capture() {
+function snap() {
   const video  = document.getElementById('videoEl');
+  const strip  = document.getElementById('cameraStrip');
   const canvas = document.getElementById('canvasEl');
-  const wrap   = document.getElementById('cameraWrap');
 
-  // Full-res capture
+  // Full resolution capture
   canvas.width  = video.videoWidth;
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0);
 
-  // Map guide rect (in wrap px) → video pixel coords
-  const wrapW = wrap.clientWidth;
-  const wrapH = wrap.clientHeight;
-  const scaleX = video.videoWidth  / wrapW;
-  const scaleY = video.videoHeight / wrapH;
+  // The strip element covers the full width of .main and 68px tall.
+  // The video is object-fit:cover + scale(1.5), so we need to map
+  // the visible strip area back to video coords.
 
-  const cx = guideRect.x * scaleX;
-  const cy = guideRect.y * scaleY;
-  const cw = guideRect.w * scaleX;
-  const ch = guideRect.h * scaleY;
+  const stripW = strip.clientWidth;
+  const stripH = strip.clientHeight;  // 68px
 
-  // Crop canvas: extract ONLY the guide box pixels
-  const cropCanvas = document.createElement('canvas');
-  cropCanvas.width  = cw;
-  cropCanvas.height = ch;
-  cropCanvas.getContext('2d').drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
+  // object-fit:cover scale (before the CSS transform)
+  const coverScale = Math.max(
+    video.videoWidth  / stripW,
+    video.videoHeight / stripH
+  );
 
-  croppedDataUrl = cropCanvas.toDataURL('image/png');
+  // Visible video area in video pixels (object-fit:cover, centered)
+  const visW = stripW * coverScale;
+  const visH = stripH * coverScale;
+  const offX = (video.videoWidth  - visW) / 2;
+  const offY = (video.videoHeight - visH) / 2;
+
+  // CSS transform: scale(1.5) zooms in further — visible region is 1/1.5 of cover area
+  const zoomFactor = 1.5;
+  const zW = visW / zoomFactor;
+  const zH = visH / zoomFactor;
+  const zX = offX + (visW - zW) / 2;
+  const zY = offY + (visH - zH) / 2;
+
+  // Crop that region to a new canvas, scaled up 4× for OCR
+  const scale = 4;
+  const crop = document.createElement('canvas');
+  crop.width  = zW * scale;
+  crop.height = zH * scale;
+  crop.getContext('2d').drawImage(canvas, zX, zY, zW, zH, 0, 0, crop.width, crop.height);
+
+  croppedUrl = crop.toDataURL('image/png');
   stopCamera();
-  showStrip(croppedDataUrl);
+  showPreview(croppedUrl);
 }
 
 function stopCamera() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  document.getElementById('cameraWrap').style.display = 'none';
-  document.getElementById('camControls').style.display = 'none';
+  document.getElementById('cameraStrip').style.display  = 'none';
+  document.getElementById('stripLabel').style.display   = 'none';
+  document.getElementById('camControls').style.display  = 'none';
+}
+
+function showPreview(url) {
+  const img = document.getElementById('stripPreview');
+  img.src = url;
+  img.style.display = 'block';
+  document.getElementById('retakeBar').classList.add('show');
+  status$('Captured — tap Read VIN');
 }
 
 function retake() {
-  croppedDataUrl = null;
+  croppedUrl = null;
   document.getElementById('stripPreview').style.display = 'none';
   document.getElementById('retakeBar').classList.remove('show');
   document.getElementById('resultCard').classList.remove('show');
-  document.getElementById('cameraWrap').style.display = 'block';
-  document.getElementById('camControls').style.display = 'flex';
-  document.getElementById('startCamBtn').disabled = false;
-  document.getElementById('captureBtn').disabled  = true;
-  setStatus('');
-  layoutGuide();
-}
-
-function showStrip(dataUrl) {
-  const img = document.getElementById('stripPreview');
-  img.src = dataUrl;
-  img.style.display = 'block';
-  document.getElementById('retakeBar').classList.add('show');
-  setStatus('Strip captured — tap Read VIN');
+  document.getElementById('cameraStrip').style.display  = 'block';
+  document.getElementById('stripLabel').style.display   = 'block';
+  document.getElementById('camControls').style.display  = 'flex';
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('snapBtn').disabled  = true;
+  status$('');
+  startCamera();  // auto-restart
 }
 
 function handleFile(e) {
-  // For uploaded images we don't know the guide, so crop middle horizontal strip
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
@@ -519,158 +394,128 @@ function handleFile(e) {
     const img = new Image();
     img.src = ev.target.result;
     await new Promise(r => img.onload = r);
-
-    // Crop: 88% width, centered horizontally, middle 12% of height
-    const cropW = Math.round(img.width * 0.88);
-    const cropH = Math.round(img.height * 0.12);
-    const cropX = Math.round((img.width - cropW) / 2);
-    const cropY = Math.round((img.height - cropH) / 2);
-
-    const c = document.createElement('canvas');
-    c.width = cropW; c.height = cropH;
-    c.getContext('2d').drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-    croppedDataUrl = c.toDataURL('image/png');
-
+    // Crop: full width, middle 15% of height
+    const cw = img.width;
+    const ch = Math.round(img.height * 0.15);
+    const cy = Math.round((img.height - ch) / 2);
+    const c  = document.createElement('canvas');
+    c.width = cw * 3; c.height = ch * 3;
+    c.getContext('2d').drawImage(img, 0, cy, cw, ch, 0, 0, c.width, c.height);
+    croppedUrl = c.toDataURL('image/png');
     stopCamera();
-    showStrip(croppedDataUrl);
+    showPreview(croppedUrl);
   };
   reader.readAsDataURL(file);
 }
 
-// ── OCR on the cropped strip only ────────────────────────────────
-async function analyzeOCR() {
-  if (!croppedDataUrl) return;
-
-  setStatus('<span class="spinner"></span> Loading OCR…');
-  showResult('<span class="spinner"></span> Reading VIN strip…', true);
+async function runOCR() {
+  if (!croppedUrl) return;
+  status$('<span class="spinner"></span> Loading OCR…');
+  showResult('<span class="spinner"></span> Reading strip…', true);
 
   try {
-    // Load the already-cropped strip
     const img = new Image();
-    img.src = croppedDataUrl;
+    img.src = croppedUrl;
     await new Promise(r => img.onload = r);
 
-    // Scale up 5× and convert to high-contrast grayscale
-    const scale = 5;
+    // High-contrast B&W processing
     const c = document.createElement('canvas');
-    c.width  = img.width  * scale;
-    c.height = img.height * scale;
+    c.width = img.width; c.height = img.height;
     const ctx = c.getContext('2d');
-
-    // White background first
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, c.width, c.height);
-    ctx.drawImage(img, 0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0);
 
-    // Adaptive threshold: convert to B&W
     const id = ctx.getImageData(0, 0, c.width, c.height);
     const d  = id.data;
     for (let i = 0; i < d.length; i += 4) {
-      // Luminance-weighted grayscale
       const lum = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
-      const v   = lum > 150 ? 255 : 0;
-      d[i] = d[i+1] = d[i+2] = v;
-      d[i+3] = 255;
+      const v   = lum > 145 ? 255 : 0;
+      d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
     }
     ctx.putImageData(id, 0, 0);
 
-    setStatus('<span class="spinner"></span> Running OCR on strip…');
+    status$('<span class="spinner"></span> Running OCR…');
 
     const result = await Tesseract.recognize(c.toDataURL('image/png'), 'eng', {
       tessedit_char_whitelist: 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789',
-      tessedit_pageseg_mode: '7',   // treat as single line of text
-      preserve_interword_spaces: '0',
+      tessedit_pageseg_mode: '7',  // single line
     });
 
-    const raw = result.data.text
-      .toUpperCase()
-      .replace(/[^A-HJ-NPR-Z0-9]/g, ''); // strip everything that's not a valid VIN char
+    const raw = result.data.text.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
+    status$('');
 
-    setStatus('');
-
-    // Find 17-char VIN sequence
     const match = raw.match(/[A-HJ-NPR-Z0-9]{17}/);
     const vin   = match ? match[0] : (raw.length >= 10 ? raw : null);
 
-    if (vin && vin.length >= 10) {
+    if (vin) {
       displayResult(vin, raw);
     } else {
       showResult(`
-        <div class="error-msg">⚠️ Δεν διαβάστηκε VIN καθαρά.<br>
-        Διάβασα: <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--muted)">"${raw || '—'}"</span>
-        </div>
-        <div class="note-msg">💡 Βεβαιώσου ότι το VIN είναι μέσα στο πλαίσιο, ή γράψε το χειροκίνητα παρακάτω.</div>
+        <div class="err">⚠️ Δεν διαβάστηκε VIN καθαρά.<br>
+        Διάβασα: <span style="font-family:'DM Mono',monospace;font-size:0.76rem">"${raw||'—'}"</span></div>
+        <div class="note">💡 Κράτα το κινητό σταθερά και βεβαιώσου ότι το VIN γεμίζει τη λωρίδα. Ή γράψε το χειροκίνητα.</div>
       `, false);
     }
-
   } catch(err) {
-    setStatus('');
-    showResult(`<div class="error-msg">⚠️ Σφάλμα: ${err.message}</div>`, false);
+    status$('');
+    showResult(`<div class="err">⚠️ ${err.message}</div>`, false);
   }
 }
 
-// ── Decode & display ──────────────────────────────────────────────
 function displayResult(vin, raw) {
-  const ch    = vin[9]; // 10th character
+  const ch    = vin[9];
   const years = VIN_YEARS[ch];
 
-  // Build VIN display with 10th char highlighted
-  const vinDisplay = vin.slice(0,9)
-    + `<span class="hl">${vin[9]}</span>`
-    + vin.slice(10);
+  const vinLine = vin.length >= 10
+    ? vin.slice(0,9) + `<span class="hl">${vin[9]}</span>` + vin.slice(10)
+    : vin;
 
-  let yearHTML = '';
+  let yearsHTML = '';
   if (years) {
     const [y1, y2] = years;
-    yearHTML = `
-      <div class="year-display">
-        <div><div class="year-sub">MODEL YEAR</div><div class="year-num">${y1}</div></div>
-        <span style="font-size:2.2rem;opacity:.5">🚗</span>
+    yearsHTML = `
+      <div class="year-card">
+        <div><div class="year-sub">MODEL YEAR</div><div class="year-big">${y1}</div></div>
+        <span style="font-size:2rem;opacity:.5">🚗</span>
       </div>
       ${y2 ? `
-      <div class="year-display">
-        <div><div class="year-sub">Ή MODEL YEAR</div><div class="year-num">${y2}</div></div>
-        <span style="font-size:2.2rem;opacity:.5">🚘</span>
+      <div class="year-card">
+        <div><div class="year-sub">Ή MODEL YEAR</div><div class="year-big">${y2}</div></div>
+        <span style="font-size:2rem;opacity:.5">🚘</span>
       </div>
-      <div class="note-msg">ℹ️ Ο κωδικός επαναλαμβάνεται κάθε 30 χρόνια.</div>` : ''}
-    `;
+      <div class="note">ℹ️ Ο κωδικός επαναλαμβάνεται κάθε 30 χρόνια.</div>` : ''}`;
   } else {
-    yearHTML = `<div class="error-msg">Άγνωστος χαρακτήρας "${ch}" στον πίνακα VIN.</div>`;
+    yearsHTML = `<div class="err">Άγνωστος χαρακτήρας "${ch}".</div>`;
   }
 
   showResult(`
     <div class="result-char">
-      <div class="char-display">${ch}</div>
-      <div class="char-sublabel">
-        <strong>10ος χαρακτήρας VIN</strong>
-        Κωδικός έτους κατασκευής
-      </div>
+      <div class="char-big">${ch}</div>
+      <div class="char-sub"><strong>10ος χαρακτήρας VIN</strong>Κωδικός έτους κατασκευής</div>
     </div>
-    ${yearHTML}
-    <div class="full-vin">VIN: ${vinDisplay}</div>
-    ${raw && raw !== vin ? `<div class="note-msg">Raw OCR: ${raw}</div>` : ''}
+    ${yearsHTML}
+    <div class="vin-line">VIN: ${vinLine}</div>
+    ${raw && raw !== vin ? `<div class="note">OCR raw: ${raw}</div>` : ''}
   `, false);
 }
 
 function decodeManual() {
-  const val = document.getElementById('manualVin').value.trim().toUpperCase();
-  if (val.length < 10) { setStatus('Χρειάζονται τουλάχιστον 10 χαρακτήρες'); return; }
-  setStatus('');
-  displayResult(val, null);
+  const v = document.getElementById('manualVin').value.trim().toUpperCase();
+  if (v.length < 10) { status$('Χρειάζονται τουλάχιστον 10 χαρακτήρες'); return; }
+  status$('');
+  displayResult(v, null);
 }
 
 function showResult(html, loading) {
-  const card = document.getElementById('resultCard');
+  const c = document.getElementById('resultCard');
   document.getElementById('resultContent').innerHTML = html;
-  card.classList.add('show');
-  card.style.opacity = loading ? '0.65' : '1';
+  c.classList.add('show');
+  c.style.opacity = loading ? '0.6' : '1';
 }
 
-function setStatus(html) {
-  document.getElementById('status').innerHTML = html;
-}
+function status$(html) { document.getElementById('status').innerHTML = html; }
 
-// Keyboard
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('manualVin').addEventListener('keydown', e => {
     if (e.key === 'Enter') decodeManual();
