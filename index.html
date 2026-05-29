@@ -3,390 +3,292 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>VIN Year Decoder</title>
+<title>VIN Decoder</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
+  * { margin:0; padding:0; box-sizing:border-box; }
   :root {
-    --bg: #0d0d0d;
-    --surface: #161616;
-    --border: #2a2a2a;
-    --accent: #e8c96d;
-    --accent2: #c4a24e;
-    --text: #f0ede8;
-    --muted: #6b6b6b;
-    --error: #e8605a;
+    --bg:#0d0d0d; --surface:#161616; --border:#2a2a2a;
+    --gold:#e8c96d; --gold2:#c4a24e; --text:#f0ede8;
+    --muted:#6b6b6b; --err:#e8605a;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; padding:20px 20px 12px; text-align:center; border-bottom:1px solid var(--border); }
+  header h1 { font-family:'Bebas Neue',sans-serif; font-size:2.4rem; letter-spacing:.12em; color:var(--gold); }
+  header p  { color:var(--muted); font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; margin-top:4px; }
+  .main { width:100%; max-width:480px; padding:18px 16px; display:flex; flex-direction:column; gap:14px; }
+
+  /* ── viewfinder strip ── */
+  .vf-label { font-family:'DM Mono',monospace; font-size:.6rem; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); text-align:center; }
+
+  .viewfinder {
+    position:relative; width:100%; height:70px;
+    background:#000; border-radius:8px; overflow:hidden;
+    border:2px solid var(--gold);
+    box-shadow:0 0 18px rgba(232,201,109,.18);
+  }
+  /* corner marks */
+  .viewfinder::before,.viewfinder::after {
+    content:''; position:absolute; width:14px; height:14px;
+    border-color:var(--gold); border-style:solid; z-index:3; pointer-events:none;
+  }
+  .viewfinder::before { top:4px; left:4px; border-width:2px 0 0 2px; }
+  .viewfinder::after  { bottom:4px; right:4px; border-width:0 2px 2px 0; }
+
+  #video {
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover;
+    /* zoom 2× so only the center strip of the scene is visible */
+    transform:scale(2); transform-origin:center center;
   }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  /* ── preview of what was cropped ── */
+  #preview {
+    display:none; width:100%; height:70px;
+    object-fit:cover; border-radius:8px;
+    border:2px solid var(--gold2);
+    background:#000;
   }
 
-  header {
-    width: 100%;
-    padding: 22px 20px 12px;
-    text-align: center;
-    border-bottom: 1px solid var(--border);
-  }
+  canvas { display:none; }
 
-  header h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.4rem;
-    letter-spacing: 0.12em;
-    color: var(--accent);
-    line-height: 1;
-  }
-
-  header p { color: var(--muted); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 4px; }
-
-  .main {
-    width: 100%;
-    max-width: 480px;
-    padding: 20px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  /* ── The strip IS the viewfinder — no extra camera view ── */
-  .strip-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.6rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--accent);
-    text-align: center;
-  }
-
-  .camera-strip {
-    position: relative;
-    width: 100%;
-    height: 68px;          /* just tall enough for a line of text */
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 2px solid var(--accent);
-    box-shadow: 0 0 16px rgba(232,201,109,0.15);
-  }
-
-  /* Corner decorations */
-  .camera-strip::before,
-  .camera-strip::after {
-    content: '';
-    position: absolute;
-    width: 12px; height: 12px;
-    border-color: var(--accent);
-    border-style: solid;
-    z-index: 2;
-  }
-  .camera-strip::before { top: 3px; left: 3px; border-width: 2px 0 0 2px; }
-  .camera-strip::after  { bottom: 3px; right: 3px; border-width: 0 2px 2px 0; }
-
-  #videoEl {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    /* zoom in so text fills the strip */
-    transform: scale(1.5);
-    transform-origin: center center;
-  }
-
-  /* ── Preview of captured strip ── */
-  #stripPreview {
-    display: none;
-    width: 100%;
-    height: 68px;
-    object-fit: cover;
-    border-radius: 8px;
-    border: 2px solid var(--accent2);
-  }
-
-  canvas { display: none; }
-
-  /* ── Buttons ── */
-  .cam-controls { display: flex; gap: 10px; }
-
+  /* ── buttons ── */
+  .row { display:flex; gap:10px; }
   .btn {
-    flex: 1;
-    padding: 13px;
-    border: none;
-    border-radius: 10px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.14s;
+    flex:1; padding:13px; border:none; border-radius:10px;
+    font-family:'DM Sans',sans-serif; font-size:.88rem; font-weight:500;
+    cursor:pointer; transition:all .13s;
   }
+  .btn-p { background:var(--gold); color:#000; }
+  .btn-s { background:var(--surface); color:var(--text); border:1px solid var(--border); }
+  .btn:active { transform:scale(.96); }
+  .btn:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+  #retakeRow { display:none; }
+  #retakeRow.show { display:flex; }
 
-  .btn-primary { background: var(--accent); color: #000; }
-  .btn-primary:active { background: var(--accent2); }
-  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-  .btn:active { transform: scale(0.96); }
-  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .upload { text-align:center; color:var(--muted); font-size:.76rem; }
+  .upload label { color:var(--gold); cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+  input[type=file] { display:none; }
 
-  .retake-bar { display: none; gap: 10px; }
-  .retake-bar.show { display: flex; }
+  .status { text-align:center; font-size:.8rem; color:var(--muted); min-height:20px; }
 
-  .upload-alt { text-align: center; color: var(--muted); font-size: 0.76rem; }
-  .upload-alt label { color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-  input[type=file] { display: none; }
+  /* ── result ── */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; display:none; }
+  .card.show { display:block; animation:up .25s ease; }
+  @keyframes up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .card-label { font-family:'DM Mono',monospace; font-size:.6rem; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-bottom:12px; }
 
-  .status { text-align: center; font-size: 0.8rem; color: var(--muted); min-height: 20px; }
+  .big-char { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; }
+  .char { font-family:'Bebas Neue',sans-serif; font-size:5rem; color:var(--gold); line-height:1; }
+  .char-info { font-size:.76rem; color:var(--muted); line-height:1.6; }
+  .char-info strong { display:block; color:var(--text); font-size:.86rem; }
 
-  /* ── Result ── */
-  .result-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 20px;
-    display: none;
-    animation: up 0.25s ease;
+  .year-box {
+    background:linear-gradient(135deg,#1e1a0e,#191500);
+    border:1px solid var(--gold2); border-radius:10px;
+    padding:14px 18px; display:flex; align-items:center;
+    justify-content:space-between; margin-bottom:8px;
   }
-  .result-card.show { display: block; }
+  .year-sub { font-size:.64rem; color:var(--muted); letter-spacing:.1em; margin-bottom:2px; }
+  .year-num { font-family:'Bebas Neue',sans-serif; font-size:3rem; color:var(--gold); line-height:1; }
 
-  @keyframes up {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+  .vin-strip {
+    margin-top:12px; padding:10px 12px; background:#0a0a0a;
+    border-radius:8px; font-family:'DM Mono',monospace; font-size:.78rem;
+    color:var(--muted); letter-spacing:.14em; word-break:break-all; line-height:2;
   }
+  .hl { color:var(--gold); font-weight:bold; font-size:1rem; }
+  .err  { color:var(--err); font-size:.84rem; line-height:1.6; }
+  .note { font-size:.7rem; color:var(--muted); margin-top:8px; line-height:1.5; }
 
-  .rlabel { font-family:'DM Mono',monospace; font-size:0.6rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
-
-  .result-char { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; }
-  .char-big { font-family:'Bebas Neue',sans-serif; font-size:5rem; color:var(--accent); line-height:1; }
-  .char-sub { font-size:0.76rem; color:var(--muted); line-height:1.6; }
-  .char-sub strong { display:block; color:var(--text); font-size:0.86rem; }
-
-  .year-card {
-    background: linear-gradient(135deg,#1e1a0e,#191500);
-    border: 1px solid var(--accent2);
-    border-radius: 10px;
-    padding: 14px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
+  /* manual */
+  .manual { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
+  .manual label { font-family:'DM Mono',monospace; font-size:.6rem; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); }
+  .manual .row2 { display:flex; gap:8px; }
+  .manual input {
+    flex:1; background:#0a0a0a; border:1px solid var(--border); border-radius:6px;
+    padding:10px 12px; color:var(--text); font-family:'DM Mono',monospace;
+    font-size:1rem; letter-spacing:.15em; text-transform:uppercase; outline:none;
   }
-  .year-sub { font-size:0.65rem; color:var(--muted); letter-spacing:0.1em; margin-bottom:2px; }
-  .year-big { font-family:'Bebas Neue',sans-serif; font-size:3rem; color:var(--accent); line-height:1; }
+  .manual input:focus { border-color:var(--gold); }
 
-  .vin-line {
-    margin-top:12px; padding:10px 12px;
-    background:#0a0a0a; border-radius:8px;
-    font-family:'DM Mono',monospace; font-size:0.8rem;
-    color:var(--muted); letter-spacing:0.14em; word-break:break-all; line-height:2;
-  }
-  .vin-line .hl { color:var(--accent); font-weight:bold; font-size:1rem; }
-
-  .err { color:var(--error); font-size:0.84rem; line-height:1.6; }
-  .note { font-size:0.7rem; color:var(--muted); margin-top:8px; line-height:1.5; }
-
-  /* ── Manual ── */
-  .manual-box {
-    background:var(--surface); border:1px solid var(--border);
-    border-radius:10px; padding:14px 16px;
-    display:flex; flex-direction:column; gap:8px;
-  }
-  .manual-box label { font-family:'DM Mono',monospace; font-size:0.6rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--muted); }
-  .manual-row { display:flex; gap:8px; }
-  .manual-box input {
-    flex:1; background:#0a0a0a; border:1px solid var(--border);
-    border-radius:6px; padding:10px 12px;
-    color:var(--text); font-family:'DM Mono',monospace;
-    font-size:1rem; letter-spacing:0.15em; text-transform:uppercase; outline:none;
-  }
-  .manual-box input:focus { border-color:var(--accent); }
-
-  .spinner {
-    display:inline-block; width:14px; height:14px;
-    border:2px solid var(--border); border-top-color:var(--accent);
-    border-radius:50%; animation:spin 0.7s linear infinite;
-    vertical-align:middle; margin-right:6px;
-  }
-  @keyframes spin { to { transform:rotate(360deg); } }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:5px; }
+  @keyframes spin { to{transform:rotate(360deg)} }
 </style>
 </head>
 <body>
 
 <header>
   <h1>VIN Decoder</h1>
-  <p>Point strip at VIN · Snap · Get year</p>
+  <p>Fit VIN in the strip · Snap · Get year</p>
 </header>
 
 <div class="main">
 
-  <div class="strip-label" id="stripLabel">Align VIN number inside the strip</div>
+  <div class="vf-label" id="vfLabel">▸ Center the VIN number in the strip below</div>
 
-  <!-- The strip IS the viewfinder -->
-  <div class="camera-strip" id="cameraStrip">
-    <video id="videoEl" autoplay playsinline muted></video>
+  <!-- The viewfinder strip -->
+  <div class="viewfinder" id="viewfinder">
+    <video id="video" autoplay playsinline muted></video>
   </div>
 
-  <!-- Captured strip preview -->
-  <img id="stripPreview" alt="Captured VIN">
+  <!-- Preview of cropped strip (shown after snap) -->
+  <img id="preview" alt="VIN strip">
 
-  <canvas id="canvasEl"></canvas>
+  <canvas id="canvas"></canvas>
 
-  <!-- Controls -->
-  <div class="cam-controls" id="camControls">
-    <button class="btn btn-secondary" id="startBtn" onclick="startCamera()">📷 Open Camera</button>
-    <button class="btn btn-primary"   id="snapBtn"  onclick="snap()" disabled>Snap</button>
+  <!-- Camera controls -->
+  <div class="row" id="camRow">
+    <button class="btn btn-s" id="openBtn" onclick="openCamera()">📷 Open Camera</button>
+    <button class="btn btn-p" id="snapBtn" onclick="snap()" disabled>Snap</button>
   </div>
 
-  <div class="retake-bar" id="retakeBar">
-    <button class="btn btn-secondary" onclick="retake()">↩ Retake</button>
-    <button class="btn btn-primary"   onclick="runOCR()">🔍 Read VIN</button>
+  <!-- After snap -->
+  <div class="row" id="retakeRow">
+    <button class="btn btn-s" onclick="retake()">↩ Retake</button>
+    <button class="btn btn-p" onclick="readVIN()">🔍 Read VIN</button>
   </div>
 
-  <div class="upload-alt">
-    or <label for="fileInput">upload photo</label>
-    <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
+  <div class="upload">
+    or <label for="fileInput">upload photo of VIN</label>
+    <input type="file" id="fileInput" accept="image/*" onchange="fromFile(event)">
   </div>
 
   <div class="status" id="status"></div>
 
-  <div class="result-card" id="resultCard">
-    <div class="rlabel">Result</div>
-    <div id="resultContent"></div>
+  <!-- Result card -->
+  <div class="card" id="resultCard">
+    <div class="card-label">Result</div>
+    <div id="resultBody"></div>
   </div>
 
-  <div class="manual-box">
+  <!-- Manual input -->
+  <div class="manual">
     <label>⌨️ Or type VIN manually</label>
-    <div class="manual-row">
-      <input id="manualVin" maxlength="17" placeholder="17 characters…"
+    <div class="row2">
+      <input id="manualInput" maxlength="17" placeholder="17 characters…"
              oninput="this.value=this.value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,'')">
-      <button class="btn btn-primary" style="flex:0;padding:10px 18px" onclick="decodeManual()">GO</button>
+      <button class="btn btn-p" style="flex:0;padding:10px 18px" onclick="manualDecode()">GO</button>
     </div>
   </div>
 
 </div>
 
 <script>
-const VIN_YEARS = {
-  'A':[1980,2010],'B':[1981,2011],'C':[1982,2012],'D':[1983,2013],
-  'E':[1984,2014],'F':[1985,2015],'G':[1986,2016],'H':[1987,2017],
-  'J':[1988,2018],'K':[1989,2019],'L':[1990,2020],'M':[1991,2021],
-  'N':[1992,2022],'P':[1993,2023],'R':[1994,2024],'S':[1995,2025],
-  'T':[1996,2026],'V':[1997,2027],'W':[1998,2028],'X':[1999,2029],
-  'Y':[2000,null],'1':[2001,null],'2':[2002,null],'3':[2003,null],
-  '4':[2004,null],'5':[2005,null],'6':[2006,null],'7':[2007,null],
-  '8':[2008,null],'9':[2009,null]
+// ── VIN year table ───────────────────────────────────────────────
+const YEARS = {
+  A:[1980,2010],B:[1981,2011],C:[1982,2012],D:[1983,2013],
+  E:[1984,2014],F:[1985,2015],G:[1986,2016],H:[1987,2017],
+  J:[1988,2018],K:[1989,2019],L:[1990,2020],M:[1991,2021],
+  N:[1992,2022],P:[1993,2023],R:[1994,2024],S:[1995,2025],
+  T:[1996,2026],V:[1997,2027],W:[1998,2028],X:[1999,2029],
+  Y:[2000,null],1:[2001,null],2:[2002,null],3:[2003,null],
+  4:[2004,null],5:[2005,null],6:[2006,null],7:[2007,null],
+  8:[2008,null],9:[2009,null]
 };
 
 let stream = null;
-let croppedUrl = null;
+let croppedDataUrl = null;
 
-async function startCamera() {
+// ── Camera ───────────────────────────────────────────────────────
+async function openCamera() {
   try {
-    status$('📷 Starting camera…');
+    setStatus('<span class="spinner"></span> Starting camera…');
     stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'environment',
-        width:  { ideal: 1920 },
-        height: { ideal: 1080 }
-      }
+      video: { facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} }
     });
-    const v = document.getElementById('videoEl');
+    const v = document.getElementById('video');
     v.srcObject = stream;
-    await new Promise(r => v.onloadedmetadata = r);
+    await new Promise(r => { v.onloadedmetadata = r; });
     v.play();
     document.getElementById('snapBtn').disabled  = false;
-    document.getElementById('startBtn').disabled = true;
-    status$('Camera ready — center the VIN in the strip');
+    document.getElementById('openBtn').disabled  = true;
+    setStatus('Fit the VIN number inside the strip, then tap Snap');
   } catch(e) {
-    status$('Camera unavailable — upload or type manually');
+    setStatus('No camera — upload a photo or type manually');
   }
 }
 
 function snap() {
-  const video  = document.getElementById('videoEl');
-  const strip  = document.getElementById('cameraStrip');
-  const canvas = document.getElementById('canvasEl');
+  const video      = document.getElementById('video');
+  const viewfinder = document.getElementById('viewfinder');
+  const canvas     = document.getElementById('canvas');
 
-  // Full resolution capture
-  canvas.width  = video.videoWidth;
-  canvas.height = video.videoHeight;
+  // 1. Draw full video frame onto canvas
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  canvas.width  = vw;
+  canvas.height = vh;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0);
+  ctx.drawImage(video, 0, 0, vw, vh);
 
-  // The strip element covers the full width of .main and 68px tall.
-  // The video is object-fit:cover + scale(1.5), so we need to map
-  // the visible strip area back to video coords.
+  // 2. Calculate which part of the video is visible inside the viewfinder strip.
+  //    The video has: object-fit:cover + CSS scale(2).
+  //
+  //    Step A — object-fit:cover: find the rendered size of the video inside the strip.
+  const sfW = viewfinder.clientWidth;
+  const sfH = viewfinder.clientHeight;           // 70 px
 
-  const stripW = strip.clientWidth;
-  const stripH = strip.clientHeight;  // 68px
+  const coverScale = Math.max(sfW / vw, sfH / vh);
+  // visible area of the video (in video pixels) that maps onto the strip:
+  const covW = sfW / coverScale;   // video pixels wide that are visible (before zoom)
+  const covH = sfH / coverScale;   // video pixels tall
+  const covX = (vw - covW) / 2;
+  const covY = (vh - covH) / 2;
 
-  // object-fit:cover scale (before the CSS transform)
-  const coverScale = Math.max(
-    video.videoWidth  / stripW,
-    video.videoHeight / stripH
-  );
+  //    Step B — CSS scale(2) zooms the rendered video by 2× around its center,
+  //    so only the MIDDLE HALF of the already-covered region is actually visible.
+  const zoomFactor = 2;
+  const zW = covW / zoomFactor;
+  const zH = covH / zoomFactor;
+  const zX = covX + (covW - zW) / 2;
+  const zY = covY + (covH - zH) / 2;
 
-  // Visible video area in video pixels (object-fit:cover, centered)
-  const visW = stripW * coverScale;
-  const visH = stripH * coverScale;
-  const offX = (video.videoWidth  - visW) / 2;
-  const offY = (video.videoHeight - visH) / 2;
-
-  // CSS transform: scale(1.5) zooms in further — visible region is 1/1.5 of cover area
-  const zoomFactor = 1.5;
-  const zW = visW / zoomFactor;
-  const zH = visH / zoomFactor;
-  const zX = offX + (visW - zW) / 2;
-  const zY = offY + (visH - zH) / 2;
-
-  // Crop that region to a new canvas, scaled up 4× for OCR
-  const scale = 4;
+  // 3. Crop ONLY that region and scale up 5× for OCR
+  const SCALE = 5;
   const crop = document.createElement('canvas');
-  crop.width  = zW * scale;
-  crop.height = zH * scale;
+  crop.width  = Math.round(zW * SCALE);
+  crop.height = Math.round(zH * SCALE);
   crop.getContext('2d').drawImage(canvas, zX, zY, zW, zH, 0, 0, crop.width, crop.height);
 
-  croppedUrl = crop.toDataURL('image/png');
+  croppedDataUrl = crop.toDataURL('image/png');
+
   stopCamera();
-  showPreview(croppedUrl);
+  showPreview(croppedDataUrl);
 }
 
 function stopCamera() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  document.getElementById('cameraStrip').style.display  = 'none';
-  document.getElementById('stripLabel').style.display   = 'none';
-  document.getElementById('camControls').style.display  = 'none';
+  document.getElementById('viewfinder').style.display = 'none';
+  document.getElementById('vfLabel').style.display    = 'none';
+  document.getElementById('camRow').style.display     = 'none';
 }
 
 function showPreview(url) {
-  const img = document.getElementById('stripPreview');
+  const img = document.getElementById('preview');
   img.src = url;
   img.style.display = 'block';
-  document.getElementById('retakeBar').classList.add('show');
-  status$('Captured — tap Read VIN');
+  document.getElementById('retakeRow').classList.add('show');
+  setStatus('This is what the scanner sees — tap Read VIN');
 }
 
 function retake() {
-  croppedUrl = null;
-  document.getElementById('stripPreview').style.display = 'none';
-  document.getElementById('retakeBar').classList.remove('show');
+  croppedDataUrl = null;
+  document.getElementById('preview').style.display     = 'none';
+  document.getElementById('retakeRow').classList.remove('show');
   document.getElementById('resultCard').classList.remove('show');
-  document.getElementById('cameraStrip').style.display  = 'block';
-  document.getElementById('stripLabel').style.display   = 'block';
-  document.getElementById('camControls').style.display  = 'flex';
-  document.getElementById('startBtn').disabled = false;
-  document.getElementById('snapBtn').disabled  = true;
-  status$('');
-  startCamera();  // auto-restart
+  document.getElementById('viewfinder').style.display  = 'block';
+  document.getElementById('vfLabel').style.display     = 'block';
+  document.getElementById('camRow').style.display      = 'flex';
+  document.getElementById('openBtn').disabled = false;
+  document.getElementById('snapBtn').disabled = true;
+  setStatus('');
+  openCamera();
 }
 
-function handleFile(e) {
+// ── Upload: crop middle 20% height strip ─────────────────────────
+function fromFile(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
@@ -394,33 +296,40 @@ function handleFile(e) {
     const img = new Image();
     img.src = ev.target.result;
     await new Promise(r => img.onload = r);
-    // Crop: full width, middle 15% of height
+
+    // Crop: full width, middle 20% height, scaled 4×
     const cw = img.width;
-    const ch = Math.round(img.height * 0.15);
+    const ch = Math.round(img.height * 0.20);
     const cy = Math.round((img.height - ch) / 2);
-    const c  = document.createElement('canvas');
-    c.width = cw * 3; c.height = ch * 3;
+
+    const SCALE = 4;
+    const c = document.createElement('canvas');
+    c.width  = cw * SCALE;
+    c.height = ch * SCALE;
     c.getContext('2d').drawImage(img, 0, cy, cw, ch, 0, 0, c.width, c.height);
-    croppedUrl = c.toDataURL('image/png');
+
+    croppedDataUrl = c.toDataURL('image/png');
     stopCamera();
-    showPreview(croppedUrl);
+    showPreview(croppedDataUrl);
   };
   reader.readAsDataURL(file);
 }
 
-async function runOCR() {
-  if (!croppedUrl) return;
-  status$('<span class="spinner"></span> Loading OCR…');
-  showResult('<span class="spinner"></span> Reading strip…', true);
+// ── OCR ──────────────────────────────────────────────────────────
+async function readVIN() {
+  if (!croppedDataUrl) return;
+  setStatus('<span class="spinner"></span> Loading OCR engine…');
+  showCard('<span class="spinner"></span> Scanning strip…', true);
 
   try {
+    // Load the cropped strip and convert to high-contrast B&W
     const img = new Image();
-    img.src = croppedUrl;
+    img.src = croppedDataUrl;
     await new Promise(r => img.onload = r);
 
-    // High-contrast B&W processing
-    const c = document.createElement('canvas');
-    c.width = img.width; c.height = img.height;
+    const c   = document.createElement('canvas');
+    c.width   = img.width;
+    c.height  = img.height;
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, c.width, c.height);
@@ -435,90 +344,93 @@ async function runOCR() {
     }
     ctx.putImageData(id, 0, 0);
 
-    status$('<span class="spinner"></span> Running OCR…');
+    setStatus('<span class="spinner"></span> Running OCR…');
 
     const result = await Tesseract.recognize(c.toDataURL('image/png'), 'eng', {
       tessedit_char_whitelist: 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789',
-      tessedit_pageseg_mode: '7',  // single line
+      tessedit_pageseg_mode: '7',   // single text line
     });
 
+    // Clean output: only valid VIN characters
     const raw = result.data.text.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
-    status$('');
+    setStatus('');
 
+    // Try to find a 17-char VIN
     const match = raw.match(/[A-HJ-NPR-Z0-9]{17}/);
     const vin   = match ? match[0] : (raw.length >= 10 ? raw : null);
 
     if (vin) {
-      displayResult(vin, raw);
+      renderResult(vin, raw);
     } else {
-      showResult(`
-        <div class="err">⚠️ Δεν διαβάστηκε VIN καθαρά.<br>
-        Διάβασα: <span style="font-family:'DM Mono',monospace;font-size:0.76rem">"${raw||'—'}"</span></div>
-        <div class="note">💡 Κράτα το κινητό σταθερά και βεβαιώσου ότι το VIN γεμίζει τη λωρίδα. Ή γράψε το χειροκίνητα.</div>
+      showCard(`
+        <div class="err">⚠️ Δεν διαβάστηκε VIN.<br>
+        OCR είδε: <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--muted)">"${raw||'—'}"</span></div>
+        <div class="note">Βεβαιώσου ότι το VIN γεμίζει τη λωρίδα και υπάρχει καλός φωτισμός. Ή γράψε το παρακάτω.</div>
       `, false);
     }
   } catch(err) {
-    status$('');
-    showResult(`<div class="err">⚠️ ${err.message}</div>`, false);
+    setStatus('');
+    showCard(`<div class="err">⚠️ Σφάλμα: ${err.message}</div>`, false);
   }
 }
 
-function displayResult(vin, raw) {
+// ── Render result ────────────────────────────────────────────────
+function renderResult(vin, raw) {
   const ch    = vin[9];
-  const years = VIN_YEARS[ch];
+  const entry = YEARS[ch];
 
-  const vinLine = vin.length >= 10
+  const vinHtml = vin.length >= 10
     ? vin.slice(0,9) + `<span class="hl">${vin[9]}</span>` + vin.slice(10)
     : vin;
 
-  let yearsHTML = '';
-  if (years) {
-    const [y1, y2] = years;
-    yearsHTML = `
-      <div class="year-card">
-        <div><div class="year-sub">MODEL YEAR</div><div class="year-big">${y1}</div></div>
+  let yearsHtml = '';
+  if (entry) {
+    const [y1, y2] = entry;
+    yearsHtml = `
+      <div class="year-box">
+        <div><div class="year-sub">MODEL YEAR</div><div class="year-num">${y1}</div></div>
         <span style="font-size:2rem;opacity:.5">🚗</span>
       </div>
       ${y2 ? `
-      <div class="year-card">
-        <div><div class="year-sub">Ή MODEL YEAR</div><div class="year-big">${y2}</div></div>
+      <div class="year-box">
+        <div><div class="year-sub">Ή MODEL YEAR</div><div class="year-num">${y2}</div></div>
         <span style="font-size:2rem;opacity:.5">🚘</span>
       </div>
       <div class="note">ℹ️ Ο κωδικός επαναλαμβάνεται κάθε 30 χρόνια.</div>` : ''}`;
   } else {
-    yearsHTML = `<div class="err">Άγνωστος χαρακτήρας "${ch}".</div>`;
+    yearsHtml = `<div class="err">Άγνωστος κωδικός "${ch}".</div>`;
   }
 
-  showResult(`
-    <div class="result-char">
-      <div class="char-big">${ch}</div>
-      <div class="char-sub"><strong>10ος χαρακτήρας VIN</strong>Κωδικός έτους κατασκευής</div>
+  showCard(`
+    <div class="big-char">
+      <div class="char">${ch}</div>
+      <div class="char-info"><strong>10ος χαρακτήρας VIN</strong>Κωδικός έτους κατασκευής</div>
     </div>
-    ${yearsHTML}
-    <div class="vin-line">VIN: ${vinLine}</div>
-    ${raw && raw !== vin ? `<div class="note">OCR raw: ${raw}</div>` : ''}
+    ${yearsHtml}
+    <div class="vin-strip">VIN: ${vinHtml}</div>
+    ${raw && raw !== vin ? `<div class="note">OCR: ${raw}</div>` : ''}
   `, false);
 }
 
-function decodeManual() {
-  const v = document.getElementById('manualVin').value.trim().toUpperCase();
-  if (v.length < 10) { status$('Χρειάζονται τουλάχιστον 10 χαρακτήρες'); return; }
-  status$('');
-  displayResult(v, null);
+function manualDecode() {
+  const v = document.getElementById('manualInput').value.trim().toUpperCase();
+  if (v.length < 10) { setStatus('Χρειάζονται τουλάχιστον 10 χαρακτήρες'); return; }
+  setStatus('');
+  renderResult(v, null);
 }
 
-function showResult(html, loading) {
-  const c = document.getElementById('resultCard');
-  document.getElementById('resultContent').innerHTML = html;
-  c.classList.add('show');
-  c.style.opacity = loading ? '0.6' : '1';
+function showCard(html, loading) {
+  const card = document.getElementById('resultCard');
+  document.getElementById('resultBody').innerHTML = html;
+  card.classList.add('show');
+  card.style.opacity = loading ? '.6' : '1';
 }
 
-function status$(html) { document.getElementById('status').innerHTML = html; }
+function setStatus(html) { document.getElementById('status').innerHTML = html; }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('manualVin').addEventListener('keydown', e => {
-    if (e.key === 'Enter') decodeManual();
+  document.getElementById('manualInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') manualDecode();
   });
 });
 </script>
