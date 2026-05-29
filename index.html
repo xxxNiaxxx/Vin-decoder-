@@ -409,6 +409,10 @@ async function startCamera() {
 function capture() {
   const video = document.getElementById('videoEl');
   const canvas = document.getElementById('canvasEl');
+  // Save camera box screen size BEFORE hiding it
+  const camBox = document.getElementById('cameraBox');
+  window._camBoxW = camBox.clientWidth;
+  window._camBoxH = camBox.clientHeight;
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video, 0, 0);
@@ -463,27 +467,51 @@ async function analyzeOCR() {
   showResult('<span class="spinner"></span> Reading VIN from image…', true);
 
   try {
-    // Pre-process image for better OCR: high contrast canvas
     const img = new Image();
     img.src = capturedDataUrl;
     await new Promise(r => img.onload = r);
 
+    // ── Crop to match the guide box exactly ──────────────────────
+    // Guide box CSS: width=88% of camera-box, height=52px
+    // Camera-box aspect-ratio: 4/3
+    // We replicate those proportions on the actual image pixels.
+    const camBox = document.getElementById('cameraBox');
+    // Use saved size from snap time (box is hidden after capture)
+    const camW = window._camBoxW || camBox.clientWidth || 360;
+    const camH = window._camBoxH || camBox.clientHeight || 270;
+
+    // Guide box screen dimensions
+    const guideW = camW * 0.88;
+    const guideH = 52; // px (matches CSS)
+    const guideX = (camW - guideW) / 2;
+    const guideY = (camH - guideH) / 2;
+
+    // Map screen coords → image coords
+    const scaleX = img.width / camW;
+    const scaleY = img.height / camH;
+
+    // Add generous vertical padding so text isn't clipped
+    const padY = guideH * 0.6;
+    const cropX = guideX * scaleX;
+    const cropY = Math.max(0, (guideY - padY) * scaleY);
+    const cropW = guideW * scaleX;
+    const cropH = Math.min(img.height - cropY, (guideH + padY * 2) * scaleY);
+
+    // Draw ONLY the cropped strip, scaled up 4× for OCR accuracy
+    const scale = 4;
     const canvas = document.createElement('canvas');
-    // Scale up for better OCR accuracy
-    const scale = Math.min(3, 1200 / img.width);
-    canvas.width = img.width * scale;
-    canvas.height = img.height * scale;
+    canvas.width = cropW * scale;
+    canvas.height = cropH * scale;
     const ctx = canvas.getContext('2d');
 
-    // Draw scaled
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
 
-    // Increase contrast
+    // B&W threshold for cleaner OCR
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     for (let i = 0; i < data.length; i += 4) {
       const avg = (data[i] + data[i+1] + data[i+2]) / 3;
-      const v = avg > 128 ? 255 : 0; // threshold to B&W
+      const v = avg > 140 ? 255 : 0;
       data[i] = data[i+1] = data[i+2] = v;
     }
     ctx.putImageData(imageData, 0, 0);
